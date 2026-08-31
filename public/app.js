@@ -4,8 +4,13 @@ socket.on("joined",x=>{code=x.code;me=socket.id;render();});socket.on("state",s=
 function lobby(){screen.innerHTML=`<div class=box><h2>Online spielen</h2><input id=name placeholder="Dein Name"><button onclick="create()">Raum erstellen</button><hr><input id=code placeholder="Raumcode"><button onclick="join()">Raum beitreten</button></div>`}
 function create(){socket.emit("create",{name:document.querySelector("#name").value})}function join(){socket.emit("join",{code:document.querySelector("#code").value,name:document.querySelector("#name").value})}
 function render(){if(!state){lobby();return}let p=state.players.find(x=>x.id===me),other=state.players.find(x=>x.id!==me);let head=`<div class=box><b>Raumcode:</b> <span class=big>${code}</span><br><span class=muted>${state.message}</span><div class=players>${state.players.map(x=>`<div><b>${x.name}</b><br>🪙 ${x.tokens} Tokens ${x.id===me?"(Du)":""}</div>`).join("")}</div></div>`;
-if(state.phase==="lobby")screen.innerHTML=head+`<div class=box>Warte auf zweiten Spieler…</div>`;
-else if(!p.setupDone) setup(head);
+if(state.phase==="lobby" && state.players.length<2)
+    screen.innerHTML=head+`<div class=box>Warte auf zweiten Spieler…</div>`;
+else if(!p.setupDone)
+    setup(head);
+else if(state.phase==="bidding")
+    bid(head,p);
+                  
 else if(state.phase==="bidding") bid(head,p);
 else if(state.phase==="choice") choice(head);
 else if(state.phase==="result") result(head);
