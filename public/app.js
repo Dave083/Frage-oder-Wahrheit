@@ -1,8 +1,9 @@
 const socket=io();
-let code=null,state=null,me=null,selected=[],setupCards=[];
+let code=null,state=null,me=null,selected=[];
 const suits=["♠","♥","♦","♣"], vals=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
 const screen=document.querySelector("#screen");
 const err=e=>alert(e);
+
 socket.on("error",err);
 socket.on("joined",x=>{code=x.code;me=socket.id;render();});
 socket.on("state",s=>{state=s;me=socket.id;render();});
@@ -13,51 +14,63 @@ function lobby(){
 function create(){socket.emit("create",{name:document.querySelector("#name").value});}
 function join(){socket.emit("join",{code:document.querySelector("#code").value,name:document.querySelector("#name").value});}
 
+function cardHtml(c,extra=""){
+  const red=c.suit==="♥"||c.suit==="♦";
+  return `<div class="playing-card ${red?"red-card":""} ${extra}" data-suit="${c.suit}">
+    <div class="card-corner top"><b>${c.value}</b><span>${c.suit}</span></div>
+    <div class="card-center">${c.suit}</div>
+    <div class="card-corner bottom"><b>${c.value}</b><span>${c.suit}</span></div>
+  </div>`;
+}
 function myCards(){return state?.myCards||[];}
 function topCards(){
   const cards=myCards();
-  if(!cards.length) return "";
-  return `<div class="my-cards-wrap"><div class="my-cards-label">🔒 Deine ausgewählten Karten</div><div class="my-cards">${cards.map(cardHtml).join("")}</div></div>`;
+  if(!cards.length)return "";
+  return `<div class="my-cards-wrap"><div class="my-cards-label">🔒 Deine ausgewählten Karten</div><div class="my-cards">${cards.map(c=>cardHtml(c,"mini-card")).join("")}</div></div>`;
 }
-function cardHtml(c){return `<div class="card small ${c.suit==="♥"||c.suit==="♦"?"red":""}"><span>${c.suit}</span><b>${c.value}</b></div>`;}
 function playersHead(){
   return `<div class=box><b>Raumcode:</b> <span class=big>${code||state.code||""}</span><br><span class=muted>${state.message||""}</span><div class=players>${state.players.map(x=>{
-    const meClass=x.id===me?"you":"opponent";
     const low=x.lowTokens?"low-tokens":"";
     const tokenText=x.id===me?`<br>🪙 ${x.tokens} Tokens (Du)`:"<br>🪙 Tokens verborgen";
-    return `<div class="player ${meClass}"><b class="player-name ${low}">${x.name}</b>${tokenText}</div>`;
+    return `<div class="player ${x.id===me?"you":"opponent"}"><b class="player-name ${low}">${x.name}</b>${tokenText}</div>`;
   }).join("")}</div></div>`;
 }
 function render(){
   if(!state){lobby();return;}
   const p=state.players.find(x=>x.id===me);
-  const head=playersHead();
-  const top=topCards();
-  if(state.phase==="lobby") screen.innerHTML=top+head+`<div class=box>Warte auf zweiten Spieler…</div>`;
-  else if(!p?.setupDone) setup(top+head);
-  else if(state.phase==="bidding") bid(top+head,p);
-  else if(state.phase==="choice") choice(top+head);
-  else if(state.phase==="result") result(top+head);
-  else if(state.phase==="finished") screen.innerHTML=top+head+`<div class=box><h2>🏆 Spiel beendet!</h2><p>${state.message}</p></div>`+notesButton();
+  const head=playersHead(), top=topCards();
+  if(state.phase==="lobby")screen.innerHTML=top+head+`<div class=box>Warte auf zweiten Spieler…</div>`+notesButton();
+  else if(!p?.setupDone)setup(top+head);
+  else if(state.phase==="bidding")bid(top+head,p);
+  else if(state.phase==="choice")choice(top+head);
+  else if(state.phase==="result")result(top+head);
+  else if(state.phase==="finished")screen.innerHTML=top+head+`<div class=box><h2>🏆 Spiel beendet!</h2><p>${state.message}</p></div>`+notesButton();
   else screen.innerHTML=top+head+`<div class=box>Warte auf den anderen Spieler…</div>`+notesButton();
 }
 
 function setup(head){
-  const deck=suits.map(s=>vals.map(v=>({s,v})));
-  screen.innerHTML=head+`<div class=box><h2>Lege 8 geheime Karten</h2><p>Wähle genau 8 Karten. Jede Farbe bleibt automatisch in einer eigenen Reihe und ist nach Kartenhöhe sortiert.</p>
-  <div class="setup-deck">${deck.map((row,suitIndex)=>`<div class="suit-row"><div class="suit-title ${suits[suitIndex]==="♥"||suits[suitIndex]==="♦"?"red":""}">${suits[suitIndex]}</div><div class="card-row">${row.map((c,valueIndex)=>{const i=suitIndex*vals.length+valueIndex;return `<div class="card ${selected.includes(i)?"sel":""} ${c.s==="♥"||c.s==="♦"?"red":""}" onclick="pick(${i})"><span>${c.s}</span><b>${c.v}</b></div>`}).join("")}</div></div>`).join("")}</div>
-  <h3>Deine Auswahl (${selected.length}/8):</h3><div class="my-cards selection-preview">${selected.map(i=>{const c=window._deck?.[i];return c?cardHtml({suit:c.s,value:c.v}):"";}).join("")}</div>
-  <button onclick="sendSetup()">Bestätigen</button></div>`+notesButton();
+  const deck=suits.map(s=>vals.map(v=>({suit:s,value:v})));
   window._deck=deck.flat();
+  screen.innerHTML=head+`<div class=box><h2>Lege 8 geheime Karten</h2><p>Die Karten sind nach Symbol und Kartenhöhe sortiert. Wähle genau 8 Karten aus.</p>
+    <div class="setup-deck">${deck.map((row,suitIndex)=>`<div class="suit-row">
+      <div class="suit-title ${suits[suitIndex]==="♥"||suits[suitIndex]==="♦"?"red":""}">${suits[suitIndex]}</div>
+      <div class="card-row">${row.map((c,valueIndex)=>{
+        const i=suitIndex*vals.length+valueIndex;
+        return `<button class="card-button ${selected.includes(i)?"selected-card":""}" onclick="pick(${i})" aria-label="${c.suit} ${c.value}">${cardHtml(c,"setup-card")}</button>`;
+      }).join("")}</div>
+    </div>`).join("")}</div>
+    <h3>Deine Auswahl (${selected.length}/8):</h3>
+    <div class="my-cards selection-preview">${selected.map(i=>cardHtml(window._deck[i],"mini-card")).join("")}</div>
+    <button onclick="sendSetup()">Bestätigen</button></div>`+notesButton();
 }
 function pick(i){
-  if(selected.includes(i)) selected=selected.filter(x=>x!==i);
-  else if(selected.length<8) selected.push(i);
+  if(selected.includes(i))selected=selected.filter(x=>x!==i);
+  else if(selected.length<8)selected.push(i);
   render();
 }
 function sendSetup(){
-  if(selected.length!==8) return err("Bitte genau 8 Karten wählen.");
-  socket.emit("setup",selected.map(i=>({suit:window._deck[i].s,value:window._deck[i].v})));
+  if(selected.length!==8)return err("Bitte genau 8 Karten wählen.");
+  socket.emit("setup",selected.map(i=>({suit:window._deck[i].suit,value:window._deck[i].value})));
 }
 
 function bid(head,p){
@@ -69,11 +82,10 @@ function bid(head,p){
 }
 function submitBid(){
   const input=document.querySelector("#bid");
-  const amount=Number(input.value);
-  socket.emit("bid",amount);
+  socket.emit("bid",Number(input.value));
   const btn=document.querySelector("#bidButton");
   if(btn){btn.classList.add("bid-done");btn.textContent="✓ Gebot abgegeben";btn.disabled=true;}
-  if(input) input.disabled=true;
+  if(input)input.disabled=true;
 }
 
 function choice(head){
@@ -90,20 +102,15 @@ function ask(type,arg){
   else if(arg==="Wert"){const v=prompt("A, 2-10, J, Q oder K");if(!v||!vals.includes(v))return err("Bitte einen gültigen Kartenwert eingeben.");q.value=v;}
   socket.emit("ask",q);
 }
-function truth(){
-  const html=`<h3>Rate die 8 Werte in Reihenfolge</h3><div class=row>${Array.from({length:8},(_,i)=>`<select id=g${i}>${vals.map(v=>`<option>${v}</option>`).join("")}</select>`).join("")}</div><button class=danger onclick="sendGuess()">Wahrheit sagen</button>`;
-  document.querySelector("#actions").innerHTML=html;
-}
+function truth(){document.querySelector("#actions").innerHTML=`<h3>Rate die 8 Werte in Reihenfolge</h3><div class=row>${Array.from({length:8},(_,i)=>`<select id=g${i}>${vals.map(v=>`<option>${v}</option>`).join("")}</select>`).join("")}</div><button class=danger onclick="sendGuess()">Wahrheit sagen</button>`;}
 function sendGuess(){socket.emit("guess",Array.from({length:8},(_,i)=>document.querySelector("#g"+i).value));}
 function result(head){
   let r=state.questionResult;
-  if(typeof r==="object"&&r) r=`Höchste Position(en): ${r.highest.join(", ")} | Niedrigste Position(en): ${r.lowest.join(", ")}`;
+  if(typeof r==="object"&&r)r=`Höchste Position(en): ${r.highest.join(", ")} | Niedrigste Position(en): ${r.lowest.join(", ")}`;
   screen.innerHTML=head+`<div class=box><h2>Antwort</h2><div class=result>${r??""}</div><br><button onclick="socket.emit('next')">Nächste Runde (+2 Tokens)</button></div>`+notesButton();
 }
-
 function notesButton(){return `<button class="notes-button" onclick="openNotes()" title="Notizen">📝 Notizen</button><div id="notesModal" class="notes-modal hidden"><div class="notes-panel"><button class="notes-close" onclick="closeNotes()">×</button><h2>📝 Meine Notizen</h2><textarea id="notesText" placeholder="Hier kannst du dir Notizen machen…"></textarea><button onclick="saveNotes()">Notizen speichern</button><p class=muted>Die Notizen werden nur auf diesem Gerät gespeichert.</p></div></div>`;}
 function openNotes(){const modal=document.querySelector("#notesModal");if(!modal)return;modal.classList.remove("hidden");const t=document.querySelector("#notesText");if(t)t.value=localStorage.getItem(`questions-truth-notes-${code||"local"}`)||"";}
 function closeNotes(){document.querySelector("#notesModal")?.classList.add("hidden");}
 function saveNotes(){const t=document.querySelector("#notesText");if(t)localStorage.setItem(`questions-truth-notes-${code||"local"}`,t.value);closeNotes();}
 render();
-
