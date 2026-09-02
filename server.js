@@ -116,7 +116,26 @@ io.on("connection",socket=>{
     const room=findRoom(socket.id);if(!room||room.phase!=="result")return;
     room.players.forEach(p=>p.tokens+=2);room.round++;room.phase="bidding";room.message=`Runde ${room.round}: Gebote abgeben.`;room.questionResult=null;room.lastQuestion=null;room.active=null;room.bids={};emitRoom(room);
   });
+  socket.on("restart",()=>{
+    const room=findRoom(socket.id);
+    // Neu starten ist nur nach einem beendeten Spiel erlaubt.
+    if(!room||room.phase!=="finished")return;
+    room.players.forEach(p=>{
+      p.ready=false;
+      p.setupDone=false;
+      p.tokens=10;
+      p.cards=null;
+    });
+    room.phase="setup";
+    room.round=1;
+    room.bids={};
+    room.active=null;
+    room.message="Neues Spiel – beide Spieler legen wieder ihre 8 geheimen Karten fest.";
+    room.questionResult=null;
+    room.lastQuestion=null;
+    room.winner=null;
+    emitRoom(room);
+  });
   socket.on("disconnect",()=>{for(const room of rooms.values()){const p=getPlayer(room,socket.id);if(p){p.connected=false;emitRoom(room);}}});
 });
 server.listen(process.env.PORT||3000,()=>console.log("http://localhost:3000"));
-
