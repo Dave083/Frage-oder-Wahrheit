@@ -44,7 +44,7 @@ function render(){
   else if(state.phase==="bidding")bid(top+head,p);
   else if(state.phase==="choice")choice(top+head);
   else if(state.phase==="result")result(top+head);
-  else if(state.phase==="finished")screen.innerHTML=top+head+`<div class=box><h2>🏆 Spiel beendet!</h2><p>${state.message}</p></div>`+notesButton();
+  else if(state.phase==="finished")screen.innerHTML=top+head+`<div class=box><h2>🏆 Spiel beendet!</h2><p>${state.message}</p><button class="restart-button" onclick="restartGame()">🔄 Erneut spielen</button></div>`+notesButton();
   else screen.innerHTML=top+head+`<div class=box>Warte auf den anderen Spieler…</div>`+notesButton();
 }
 
@@ -104,6 +104,12 @@ function ask(type,arg){
 }
 function truth(){document.querySelector("#actions").innerHTML=`<h3>Rate die 8 Werte in Reihenfolge</h3><div class=row>${Array.from({length:8},(_,i)=>`<select id=g${i}>${vals.map(v=>`<option>${v}</option>`).join("")}</select>`).join("")}</div><button class=danger onclick="sendGuess()">Wahrheit sagen</button>`;}
 function sendGuess(){socket.emit("guess",Array.from({length:8},(_,i)=>document.querySelector("#g"+i).value));}
+function restartGame(){
+  // Beide Spieler werden wieder in die Kartenauswahl gesetzt.
+  selected=[];
+  socket.emit("restart");
+}
+
 function result(head){
   let r=state.questionResult;
   if(typeof r==="object"&&r)r=`Höchste Position(en): ${r.highest.join(", ")} | Niedrigste Position(en): ${r.lowest.join(", ")}`;
